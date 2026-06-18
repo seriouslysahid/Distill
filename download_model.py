@@ -5,7 +5,6 @@ import sys
 # This environment variable MUST be set before importing huggingface_hub
 try:
     import hf_transfer
-    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
     hf_transfer_enabled = True
 except ImportError:
     hf_transfer_enabled = False
@@ -99,10 +98,12 @@ def main():
     print(f"=== Model Downloader & Verifier ===")
     print(f"Target Model ID: {model_id}")
     print(f"Local Storage Directory: {local_dir}")
-    if hf_transfer_enabled:
+    if hf_transfer_enabled and not args.config_only:
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
         print("Rust-based High-Speed Downloader (hf_transfer): ENABLED")
     else:
-        print("Rust-based High-Speed Downloader (hf_transfer): DISABLED (using standard downloader)")
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+        print("Rust-based High-Speed Downloader (hf_transfer): DISABLED (using standard downloader to support ignore patterns)")
         
     if hf_token:
         print("Hugging Face API Token: Detected in environment variables.")
