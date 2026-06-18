@@ -5,19 +5,19 @@ model:
   local_dir: "./models/teacher"
 
 generation:
-  # Execution mode: "vllm" (for high-throughput A100 execution), "mock", or "transformers"
+  # Execution mode: "vllm" (for high-throughput H100 execution), "mock", or "transformers"
   backend: "vllm"
   api_base: ""
   api_key: ""
-  num_samples: 2000 # Scaling up dataset size for the A100 run
-  batch_size: 128  # Large batch size to fully saturate A100 memory
+  num_samples: 1000000 # Scaled up dataset size to 1M samples
+  batch_size: 2048  # Large batch size to fully saturate H100 memory and Tensor Cores
   temperature: 0.7
   max_new_tokens: 512
   
-  # vLLM optimized settings for 40GB A100
+  # vLLM optimized settings for 80GB H100
   gpu_memory_utilization: 0.90
   max_model_len: 4096
-  tensor_parallel_size: 1
+  tensor_parallel_size: 1 # Increase this to match the selected GPU quantity if using 2x or 4x H100s
 
 prompts:
   # vLLM prompt templates
@@ -51,8 +51,8 @@ cleaning:
   # Decoupled mock template file path
   mock_templates_file: "mock_templates.json"
   
-  # Multiprocessing setup for 30 CPUs
-  num_workers: 30
+  # Multiprocessing setup optimized for 12 vCPUs (leaving 1 CPU free for coordination)
+  num_workers: 11
   
   # Jaccard similarity threshold for near-duplicate filtering (0.0 to 1.0)
   near_dup_threshold: 0.85
