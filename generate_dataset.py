@@ -29,6 +29,55 @@ except Exception:
     pass
 
 
+def _generate_mock_data_fallback(num_samples: int, task_mix: Dict[str, float], mock_templates_file: str) -> List[Dict[str, Any]]:
+    """Pure Python fallback helper to generate mock samples without Distilabel class context warnings."""
+    try:
+        with open(mock_templates_file, "r", encoding="utf-8") as f:
+            mock_templates = json.load(f)
+    except Exception as e:
+        print(f"[ERROR] Fallback loader failed to read mock templates file '{mock_templates_file}': {e}")
+        return []
+        
+    task_types = list(task_mix.keys())
+    if not task_types:
+        task_types = list(mock_templates.keys())
+        
+    weights = [task_mix.get(t, 1.0) for t in task_types]
+    names = ["Aarav", "Priya", "Rahul", "Ananya", "Sai", "Lakshmi", "Karthik", "Sneha", "Aditya", "Divya"]
+    
+    samples = []
+    for _ in range(num_samples):
+        task_type = random.choices(task_types, weights=weights, k=1)[0]
+        templates = mock_templates.get(task_type, [])
+        if not templates:
+            continue
+        base_template = random.choice(templates)
+        
+        sample = dict(base_template)
+        name = random.choice(names)
+        
+        if "{name}" not in sample["instruction"] and random.random() < 0.4:
+            if sample["lang"] == "hi":
+                sample["instruction"] = sample["instruction"].replace("मुझे", f"नमस्ते, मैं {name} हूँ। मुझे")
+            elif sample["lang"] == "en":
+                sample["instruction"] = f"Hi, I'm {name}. " + sample["instruction"]
+        
+        sample["task_type"] = task_type
+        sample["source_teacher"] = "sarvamai/sarvam-105b"
+        
+        samples.append({
+            "instruction": sample["instruction"],
+            "response": sample["response"],
+            "rationale": sample.get("rationale"),
+            "task_type": sample["task_type"],
+            "language": sample["lang"],
+            "difficulty": sample["difficulty"],
+            "style": sample["style"],
+            "source_teacher": sample["source_teacher"]
+        })
+    return samples
+
+
 class MockDataGenerator(GeneratorStep):
     """Custom Distilabel Generator Step using configuration-driven mock templates for local CPU validation."""
     
@@ -98,12 +147,13 @@ class MockDataGenerator(GeneratorStep):
             yield batch, is_last
 
 
-class VllmDataGenerator(Step):
-    """Optimized Distilabel Step utilizing vLLM engine for high-throughput batch generation on A100 GPUs."""
+class VllmDataGenerator(GeneratorStep):
+    """Optimized Distilabel GeneratorStep utilizing vLLM engine for high-throughput batch generation on A100 GPUs."""
     
     model_id: str
     num_samples: int
     task_mix: Dict[str, float]
+    batch_size: int = 128
     gpu_memory_utilization: float = 0.90
     max_model_len: int = 4096
     tensor_parallel_size: int = 1
@@ -116,14 +166,10 @@ class VllmDataGenerator(Step):
     vllm_response_reasoning: str = ""
 
     @property
-    def inputs(self) -> List[str]:
-        return []
-        
-    @property
     def outputs(self) -> List[str]:
         return ["instruction", "response", "rationale", "task_type", "language", "difficulty", "style", "source_teacher"]
 
-    def process(self, inputs: StepInput = None) -> Generator[StepOutput, None, None]:
+    def process(self, offset: int = 0) -> Generator[Tuple[List[Dict[str, Any]], bool], None, None]:
         try:
             from vllm import LLM, SamplingParams
         except ImportError:
@@ -146,10 +192,12 @@ class VllmDataGenerator(Step):
         weights = [self.task_mix.get(t, 1.0) for t in task_types]
         languages = ["hi", "te", "ta", "en", "mr", "bn", "gu", "kn", "ml"]
 
-        # Step 1: Pre-plan metadata for all samples
-        print(f"Pre-planning {self.num_samples} samples across tasks...")
+        # Step 1: Pre-plan metadata for all remaining samples
+        remaining_samples = self.num_samples - offset
+        print(f"Pre-planning {remaining_samples} samples across tasks starting from offset {offset}...")
+        
         metadata = []
-        for _ in range(self.num_samples):
+        for _ in range(remaining_samples):
             task_type = random.choices(task_types, weights=weights, k=1)[0]
             lang = random.choice(languages)
             difficulty = random.choice(["easy", "medium", "hard"])
@@ -162,7 +210,7 @@ class VllmDataGenerator(Step):
             })
 
         # Step 2: Generate all USER instructions in one large parallel batch
-        print(f"Generating {self.num_samples} instructions in parallel using vLLM...")
+        print(f"Generating {remaining_samples} instructions in parallel using vLLM...")
         instruction_prompts = []
         for m in metadata:
             prompt = self.vllm_instruction_gen.format(
@@ -212,8 +260,8 @@ class VllmDataGenerator(Step):
         print(f"Generating {num_valid} responses in parallel using vLLM...")
         outputs_resp = llm.generate(response_prompts, sampling_params_resp)
 
-        # Step 4: Parse responses/rationales and yield results
-        yield_count = 0
+        # Step 4: Parse responses/rationales and construct samples
+        generated_samples = []
         for idx, out in enumerate(outputs_resp):
             m = metadata[idx]
             inst = instructions[idx]
@@ -240,7 +288,7 @@ class VllmDataGenerator(Step):
                         print(f"Warning: Failed to parse reasoning colon sections: {e}")
                         response = raw_text
             
-            yield [{
+            generated_samples.append({
                 "instruction": inst,
                 "response": response,
                 "rationale": rationale,
@@ -249,18 +297,24 @@ class VllmDataGenerator(Step):
                 "difficulty": m["difficulty"],
                 "style": m["style"],
                 "source_teacher": self.model_id
-            }]
-            yield_count += 1
+            })
             
-        print(f"Generated and yielded {yield_count} samples.")
+        print(f"Generated {len(generated_samples)} valid samples. Yielding in batches of {self.batch_size}...")
+        
+        # Yield samples in chunks of batch_size
+        for i in range(0, len(generated_samples), self.batch_size):
+            chunk = generated_samples[i : i + self.batch_size]
+            is_last = (offset + i + len(chunk)) >= self.num_samples or (i + self.batch_size) >= len(generated_samples)
+            yield chunk, is_last
 
 
-class TransformersDataGenerator(Step):
-    """Distilabel Step using a local Hugging Face model for instruction & response generation."""
+class TransformersDataGenerator(GeneratorStep):
+    """Distilabel GeneratorStep using a local Hugging Face model for instruction & response generation."""
     
     model_id: str
     num_samples: int
     task_mix: Dict[str, float]
+    batch_size: int = 10
     
     # Configurable prompt templates loaded from config.yaml
     transformers_instruction_gen: str = ""
@@ -268,14 +322,10 @@ class TransformersDataGenerator(Step):
     transformers_response_reasoning: str = ""
 
     @property
-    def inputs(self) -> List[str]:
-        return []
-        
-    @property
     def outputs(self) -> List[str]:
         return ["instruction", "response", "rationale", "task_type", "language", "difficulty", "style", "source_teacher"]
 
-    def process(self, inputs: StepInput = None) -> Generator[StepOutput, None, None]:
+    def process(self, offset: int = 0) -> Generator[Tuple[List[Dict[str, Any]], bool], None, None]:
         from transformers import pipeline
         import torch
         
@@ -304,66 +354,74 @@ class TransformersDataGenerator(Step):
         weights = [self.task_mix.get(t, 1.0) for t in task_types]
         languages = ["hi", "te", "ta", "en", "mr", "bn"]
         
-        generated = 0
+        generated = offset
         while generated < self.num_samples:
-            task_type = random.choices(task_types, weights=weights, k=1)[0]
-            lang = random.choice(languages)
+            batch = []
+            current_batch_size = min(self.batch_size, self.num_samples - generated)
             
-            prompt_generation_query = self.transformers_instruction_gen.format(
-                task_type=task_type,
-                lang=lang
-            )
-            
-            try:
-                res = generator(prompt_generation_query, max_new_tokens=100, do_sample=True, temperature=0.7)
-                instruction = res[0]["generated_text"].replace(prompt_generation_query, "").strip()
-            except Exception as e:
-                print(f"Warning: Failed to generate instruction for {task_type}/{lang}: {e}")
-                continue
-            
-            if not instruction or len(instruction) < 5:
-                continue
+            for _ in range(current_batch_size):
+                task_type = random.choices(task_types, weights=weights, k=1)[0]
+                lang = random.choice(languages)
                 
-            if task_type == "reasoning":
-                response_query = self.transformers_response_reasoning.format(instruction=instruction)
-            else:
-                response_query = self.transformers_response_standard.format(instruction=instruction)
+                prompt_generation_query = self.transformers_instruction_gen.format(
+                    task_type=task_type,
+                    lang=lang
+                )
                 
-            try:
-                res = generator(response_query, max_new_tokens=512, do_sample=True, temperature=0.7)
-                raw_output = res[0]["generated_text"].replace(response_query, "").strip()
-            except Exception as e:
-                print(f"Warning: Failed to generate response for instruction: {e}")
-                continue
-            
-            rationale = None
-            response = raw_output
-            
-            if task_type == "reasoning" and "[Rationale]" in raw_output and "[Response]" in raw_output:
                 try:
-                    parts = raw_output.split("[Response]")
-                    rationale = parts[0].replace("[Rationale]", "").strip()
-                    response = parts[1].strip()
-                except Exception as parse_err:
-                    print(f"Warning: Failed to parse reasoning sections in transformers output: {parse_err}")
-                    response = raw_output
-            else:
+                    res = generator(prompt_generation_query, max_new_tokens=100, do_sample=True, temperature=0.7)
+                    instruction = res[0]["generated_text"].replace(prompt_generation_query, "").strip()
+                except Exception as e:
+                    print(f"Warning: Failed to generate instruction for {task_type}/{lang}: {e}")
+                    continue
+                
+                if not instruction or len(instruction) < 5:
+                    continue
+                    
+                if task_type == "reasoning":
+                    response_query = self.transformers_response_reasoning.format(instruction=instruction)
+                else:
+                    response_query = self.transformers_response_standard.format(instruction=instruction)
+                    
+                try:
+                    res = generator(response_query, max_new_tokens=512, do_sample=True, temperature=0.7)
+                    raw_output = res[0]["generated_text"].replace(response_query, "").strip()
+                except Exception as e:
+                    print(f"Warning: Failed to generate response for instruction: {e}")
+                    continue
+                
+                rationale = None
                 response = raw_output
                 
-            difficulty = random.choice(["easy", "medium", "hard"])
-            style = "reasoning" if task_type == "reasoning" else ("spoken" if task_type == "speech_dialogue" else "conversational")
+                if task_type == "reasoning" and "[Rationale]" in raw_output and "[Response]" in raw_output:
+                    try:
+                        parts = raw_output.split("[Response]")
+                        rationale = parts[0].replace("[Rationale]", "").strip()
+                        response = parts[1].strip()
+                    except Exception as parse_err:
+                        print(f"Warning: Failed to parse reasoning sections in transformers output: {parse_err}")
+                        response = raw_output
+                else:
+                    response = raw_output
+                    
+                difficulty = random.choice(["easy", "medium", "hard"])
+                style = "reasoning" if task_type == "reasoning" else ("spoken" if task_type == "speech_dialogue" else "conversational")
+                
+                batch.append({
+                    "instruction": instruction,
+                    "response": response,
+                    "rationale": rationale,
+                    "task_type": task_type,
+                    "language": lang,
+                    "difficulty": difficulty,
+                    "style": style,
+                    "source_teacher": self.model_id
+                })
+                
+            generated += len(batch)
+            is_last = generated >= self.num_samples or len(batch) == 0
             
-            yield [{
-                "instruction": instruction,
-                "response": response,
-                "rationale": rationale,
-                "task_type": task_type,
-                "language": lang,
-                "difficulty": difficulty,
-                "style": style,
-                "source_teacher": self.model_id
-            }]
-            generated += 1
+            yield batch, is_last
 
 
 def build_pipeline(config: Dict[str, Any]) -> Pipeline:
@@ -389,6 +447,7 @@ def build_pipeline(config: Dict[str, Any]) -> Pipeline:
                 model_id=model_id,
                 num_samples=num_samples,
                 task_mix=task_mix,
+                batch_size=config["generation"].get("batch_size", 128),
                 gpu_memory_utilization=config["generation"].get("gpu_memory_utilization", 0.90),
                 max_model_len=config["generation"].get("max_model_len", 4096),
                 tensor_parallel_size=config["generation"].get("tensor_parallel_size", 1),
@@ -401,10 +460,11 @@ def build_pipeline(config: Dict[str, Any]) -> Pipeline:
         elif backend == "transformers":
             model_id = config["model"]["teacher_id"]
             TransformersDataGenerator(
-                name="local_transformers_generator",
+                name="transformers_generator",
                 model_id=model_id,
                 num_samples=num_samples,
                 task_mix=task_mix,
+                batch_size=config["generation"].get("batch_size", 10),
                 transformers_instruction_gen=prompts.get("transformers_instruction_gen", ""),
                 transformers_response_standard=prompts.get("transformers_response_standard", ""),
                 transformers_response_reasoning=prompts.get("transformers_response_reasoning", "")
@@ -464,7 +524,7 @@ def main():
     # Distilabel 1.0+ output structure extraction
     if pipeline_result is not None:
         backend = config["generation"]["backend"]
-        step_name = f"{backend}_generator" if backend in ["mock", "vllm"] else "local_transformers_generator"
+        step_name = f"{backend}_generator" if backend in ["mock", "vllm", "transformers"] else "local_transformers_generator"
         if step_name not in pipeline_result:
             step_name = list(pipeline_result.keys())[0] if pipeline_result.keys() else None
             
@@ -484,14 +544,11 @@ def main():
     if not samples:
         print("Dataset extraction from pipeline returned empty. Running fallback generator to secure raw file...")
         try:
-            fallback_gen = MockDataGenerator(
+            samples = _generate_mock_data_fallback(
                 num_samples=config["generation"]["num_samples"], 
                 task_mix=config["dataset"]["target_mix"],
-                batch_size=config["generation"].get("batch_size", 50),
                 mock_templates_file=config["cleaning"].get("mock_templates_file", "mock_templates.json")
             )
-            for batch, is_last in fallback_gen.process():
-                samples.extend(batch)
         except Exception as e:
             print(f"[ERROR] Fallback mock generation also failed: {e}")
             sys.exit(1)
