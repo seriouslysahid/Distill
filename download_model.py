@@ -1,5 +1,7 @@
 import os
 import sys
+import warnings
+warnings.filterwarnings("ignore")
 
 # Force enable hf_transfer for Rust-based high-speed parallel downloads
 # This environment variable MUST be set before importing huggingface_hub

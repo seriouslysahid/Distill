@@ -3,6 +3,8 @@ import sys
 import subprocess
 import argparse
 import yaml
+import warnings
+warnings.filterwarnings("ignore")
 from pathlib import Path
 
 # Force UTF-8 stdout/stderr on Windows to prevent UnicodeEncodeError
@@ -23,24 +25,32 @@ def load_config(config_path="config.yaml"):
         return yaml.safe_load(f)
 
 def run_command(command_list, description):
-    """Run a command as a subprocess and stream output."""
-    print(f"\n>>> Running: {description}...")
-    print(f"Command: {' '.join(command_list)}")
+    """Run a command as a subprocess and stream output with premium terminal styling."""
+    border = "=" * 80
+    print(f"\n{border}")
+    print(f"  RUNNING: {description.upper()}")
+    print(f"  Command: {' '.join(command_list)}")
+    print(f"{border}\n")
     try:
         # Run process and pipe output directly to stdout/stderr
-        # We specify encoding as utf-8 to ensure unicode symbols are parsed correctly
         result = subprocess.run(
             command_list,
             check=True,
             text=True
         )
-        print(f"✔ Success: {description} completed successfully.")
+        print(f"\n{border}")
+        print(f"  [OK] {description} completed successfully.")
+        print(f"{border}\n")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error: {description} failed with exit code {e.returncode}.")
+        print(f"\n{border}")
+        print(f"  [ERROR] {description} failed with exit code {e.returncode}.")
+        print(f"{border}\n")
         return False
     except Exception as e:
-        print(f"❌ Error executing {description}: {e}")
+        print(f"\n{border}")
+        print(f"  [ERROR] Executing {description}: {e}")
+        print(f"{border}\n")
         return False
 
 def download_step(args, config):

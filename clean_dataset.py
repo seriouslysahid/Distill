@@ -10,6 +10,8 @@ import json
 import re
 import yaml
 import argparse
+import warnings
+warnings.filterwarnings("ignore")
 from pathlib import Path
 import binascii
 from collections import Counter
