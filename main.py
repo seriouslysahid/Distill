@@ -157,6 +157,10 @@ def generate_step(args, config):
         cmd.extend(["--backend", args.backend])
     if args.num_samples:
         cmd.extend(["--num_samples", str(args.num_samples)])
+    if args.tensor_parallel_size is not None:
+        cmd.extend(["--tensor_parallel_size", str(args.tensor_parallel_size)])
+    if args.quantization:
+        cmd.extend(["--quantization", args.quantization])
         
     return run_command(cmd, "Synthetic dataset generation")
 
@@ -187,6 +191,8 @@ Commands:
     parser.add_argument("--local_dir", type=str, help="Override local download path")
     parser.add_argument("--backend", type=str, choices=["mock", "transformers", "vllm"], help="Override generation backend")
     parser.add_argument("--num_samples", type=int, help="Override number of samples to generate")
+    parser.add_argument("--tensor_parallel_size", type=int, help="Tensor parallel size (number of GPUs)")
+    parser.add_argument("--quantization", type=str, help="Quantization format (e.g. fp8)")
     
     # Download specific overrides
     parser.add_argument("--config_only", action="store_true", help="Download tokenizer and configuration files only")

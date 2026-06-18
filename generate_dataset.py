@@ -610,6 +610,8 @@ def main():
     parser.add_argument("--backend", type=str, choices=["mock", "transformers", "vllm"], help="Generation backend")
     parser.add_argument("--num_samples", type=int, help="Number of samples to generate")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config.yaml")
+    parser.add_argument("--tensor_parallel_size", type=int, help="Tensor parallel size (number of GPUs)")
+    parser.add_argument("--quantization", type=str, help="Quantization format (e.g. fp8)")
     args = parser.parse_args()
 
     # Load configuration
@@ -658,6 +660,10 @@ def main():
         config["generation"]["backend"] = args.backend
     if args.num_samples:
         config["generation"]["num_samples"] = args.num_samples
+    if args.tensor_parallel_size is not None:
+        config["generation"]["tensor_parallel_size"] = args.tensor_parallel_size
+    if args.quantization is not None:
+        config["generation"]["quantization"] = args.quantization
 
     print(f"Starting Distilabel pipeline. Backend: {config['generation']['backend']} | Target Samples: {config['generation']['num_samples']}")
     
