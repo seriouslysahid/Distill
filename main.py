@@ -87,8 +87,47 @@ def download_step(args, config):
         
     return run_command(cmd, "Model download & verification")
 
+def cleanup_zombie_gpus():
+    """Find and terminate zombie processes holding GPU memory to prevent OOM."""
+    try:
+        import subprocess
+        # Get PIDs of processes using GPU
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader"],
+            text=True
+        )
+        pids = [int(line.strip()) for line in out.strip().split("\n") if line.strip()]
+        if pids:
+            border = "=" * 80
+            print(f"\n{border}")
+            print(f"  [GPU HEALTH] Found {len(pids)} process(es) currently using GPU memory: {pids}")
+            
+            import os
+            current_pid = os.getpid()
+            parent_pid = os.getppid()
+            
+            killed_any = False
+            for pid in pids:
+                if pid != current_pid and pid != parent_pid:
+                    print(f"  Terminating zombie GPU process {pid}...")
+                    try:
+                        os.kill(pid, 9)
+                        killed_any = True
+                    except Exception as kill_err:
+                        print(f"    Could not terminate process {pid}: {kill_err}")
+            
+            if killed_any:
+                print("  [GPU HEALTH] Zombie GPU processes terminated. Waiting 2 seconds for VRAM release...")
+                import time
+                time.sleep(2)
+            print(f"{border}\n")
+    except Exception:
+        # Ignore errors (e.g. nvidia-smi not available on local CPU-only tests)
+        pass
+
 def generate_step(args, config):
     """Run the synthetic generation step."""
+    cleanup_zombie_gpus()
     cmd = [sys.executable, "generate_dataset.py"]
     if args.backend:
         cmd.extend(["--backend", args.backend])
