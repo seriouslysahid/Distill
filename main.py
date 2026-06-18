@@ -89,43 +89,65 @@ def download_step(args, config):
 
 def cleanup_zombie_gpus():
     """Find and terminate zombie processes holding GPU memory to prevent OOM."""
+    import os
+    import sys
+    border = "=" * 80
+    print(f"\n{border}")
+    print("  [GPU HEALTH] Running active process cleanup...")
+    
+    current_pid = os.getpid()
+    parent_pid = os.getppid()
+    killed_any = False
+    
+    # Method 1: Using psutil to scan process list for orphaned python/vllm instances
+    try:
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                pid = proc.info['pid']
+                if pid == current_pid or pid == parent_pid:
+                    continue
+                cmdline = proc.info['cmdline']
+                if cmdline:
+                    cmd_str = " ".join(cmdline).lower()
+                    if ("python" in cmd_str or "vllm" in cmd_str or "distilabel" in cmd_str) and \
+                       ("generate_dataset" in cmd_str or "main.py" in cmd_str or "vllm" in cmd_str or "multiprocessing" in cmd_str):
+                        print(f"  [GPU HEALTH] Terminating process {pid} ({proc.info['name']}): {' '.join(cmdline)[:80]}...")
+                        proc.kill()
+                        killed_any = True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    except Exception as e:
+        print(f"  [GPU HEALTH] Process scanning failed: {e}")
+
+    # Method 2: Query nvidia-smi as a fallback
     try:
         import subprocess
-        # Get PIDs of processes using GPU
         out = subprocess.check_output(
             ["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader"],
             text=True
         )
         pids = [int(line.strip()) for line in out.strip().split("\n") if line.strip()]
-        if pids:
-            border = "=" * 80
-            print(f"\n{border}")
-            print(f"  [GPU HEALTH] Found {len(pids)} process(es) currently using GPU memory: {pids}")
-            
-            import os
-            current_pid = os.getpid()
-            parent_pid = os.getppid()
-            
-            killed_any = False
-            for pid in pids:
-                if pid != current_pid and pid != parent_pid:
-                    print(f"  Terminating zombie GPU process {pid}...")
-                    try:
-                        os.kill(pid, 9)
-                        killed_any = True
-                    except Exception as kill_err:
-                        print(f"    Could not terminate process {pid}: {kill_err}")
-            
-            if killed_any:
-                print("  [GPU HEALTH] Zombie GPU processes terminated. Waiting 2 seconds for VRAM release...")
-                import time
-                time.sleep(2)
-            print(f"{border}\n")
+        for pid in pids:
+            if pid != current_pid and pid != parent_pid:
+                print(f"  [GPU HEALTH] Terminating GPU app process {pid} via nvidia-smi...")
+                try:
+                    os.kill(pid, 9)
+                    killed_any = True
+                except Exception as kill_err:
+                    print(f"    Could not terminate process {pid}: {kill_err}")
     except FileNotFoundError:
-        # Ignore if nvidia-smi is not installed (e.g. CPU-only local environment)
         pass
     except Exception as e:
-        print(f"[WARNING] GPU cleanup failed: {e}")
+        print(f"  [GPU HEALTH] nvidia-smi query failed: {e}")
+
+    if killed_any:
+        print("  [GPU HEALTH] Orphaned processes terminated. Waiting 2 seconds for VRAM release...")
+        import time
+        time.sleep(2)
+    else:
+        print("  [GPU HEALTH] No orphaned GPU or vLLM processes detected.")
+    print(f"{border}\n")
 
 def generate_step(args, config):
     """Run the synthetic generation step."""
