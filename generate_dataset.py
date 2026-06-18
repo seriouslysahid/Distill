@@ -150,7 +150,7 @@ class MockDataGenerator(GeneratorStep):
 
 
 class VllmDataGenerator(GeneratorStep):
-    """Optimized Distilabel GeneratorStep utilizing vLLM engine for high-throughput batch generation on A100 GPUs."""
+    """Optimized Distilabel GeneratorStep utilizing vLLM engine for high-throughput batch generation on H100 GPUs."""
     
     model_id: str
     num_samples: int
@@ -161,6 +161,7 @@ class VllmDataGenerator(GeneratorStep):
     tensor_parallel_size: int = 1
     temperature: float = 0.7
     max_new_tokens: int = 512
+    local_dir: str = "./models/teacher"
     
     # Configurable prompt templates loaded from config.yaml
     vllm_instruction_gen: str = ""
@@ -172,6 +173,19 @@ class VllmDataGenerator(GeneratorStep):
         return ["instruction", "response", "rationale", "task_type", "language", "difficulty", "style", "source_teacher"]
 
     def process(self, offset: int = 0) -> Generator[Tuple[List[Dict[str, Any]], bool], None, None]:
+        import subprocess
+        from pathlib import Path
+        
+        # Check and apply vLLM hotpatch for Sarvam custom architectures before importing vllm
+        hotpatch_script = Path(self.local_dir) / "hotpatch_vllm.py"
+        if hotpatch_script.exists():
+            print(f"\nFound vLLM hotpatch script at {hotpatch_script}. Running hotpatch...")
+            try:
+                subprocess.run([sys.executable, str(hotpatch_script)], check=True)
+                print("[OK] vLLM hotpatched successfully for Sarvam MoE/MLA architectures.")
+            except Exception as e:
+                print(f"[WARNING] Failed to run hotpatch_vllm.py: {e}")
+
         try:
             from vllm import LLM, SamplingParams
         except ImportError:
@@ -463,6 +477,7 @@ def build_pipeline(config: Dict[str, Any]) -> Pipeline:
                 tensor_parallel_size=config["generation"].get("tensor_parallel_size", 1),
                 temperature=config["generation"].get("temperature", 0.7),
                 max_new_tokens=config["generation"].get("max_new_tokens", 512),
+                local_dir=config["model"].get("local_dir", "./models/teacher"),
                 vllm_instruction_gen=prompts.get("vllm_instruction_gen", ""),
                 vllm_response_standard=prompts.get("vllm_response_standard", ""),
                 vllm_response_reasoning=prompts.get("vllm_response_reasoning", "")

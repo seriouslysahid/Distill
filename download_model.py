@@ -172,6 +172,18 @@ def main():
             max_workers=8 if hf_transfer_enabled else 4
         )
         print(f"[OK] Download completed! Files stored at: {downloaded_path}")
+        
+        # Automatically run hotpatch_vllm.py if it is present in local_dir
+        hotpatch_script = Path(local_dir) / "hotpatch_vllm.py"
+        if hotpatch_script.exists():
+            print(f"\nFound vLLM hotpatch script: {hotpatch_script}")
+            print("Executing hotpatch to register Sarvam custom architectures in vLLM...")
+            try:
+                import subprocess
+                subprocess.run([sys.executable, str(hotpatch_script)], check=True)
+                print("[OK] vLLM installation hotpatched successfully for Sarvam MoE/MLA.")
+            except Exception as patch_err:
+                print(f"[WARNING] Failed to run hotpatch_vllm.py: {patch_err}")
     except Exception as e:
         print(f"[ERROR] Failed to download model: {e}")
         print("Note: If the model is gated, ensure your HF_TOKEN environment variable is set correctly.")
