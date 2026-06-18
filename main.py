@@ -7,6 +7,26 @@ import warnings
 warnings.filterwarnings("ignore")
 from pathlib import Path
 
+# Check for numpy binary incompatibility (NumPy 2.x vs Pandas/PyArrow built on NumPy 1.x)
+try:
+    import pandas as pd
+except ValueError as e:
+    if "numpy.dtype size changed" in str(e):
+        print("\n" + "="*80)
+        print("[WARNING] NumPy binary incompatibility detected (likely upgraded to NumPy 2.x by vLLM).")
+        print("Restoring NumPy <2 to prevent binary incompatibility with pandas/pyarrow...")
+        print("="*80 + "\n")
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "numpy<2"], check=True)
+            print("\n[OK] NumPy successfully downgraded. Re-executing command...\n")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as run_err:
+            print(f"[ERROR] Failed to downgrade NumPy: {run_err}")
+            print("Please run manually: pip install \"numpy<2\"")
+            sys.exit(1)
+except ImportError:
+    pass
+
 # Force UTF-8 stdout/stderr on Windows to prevent UnicodeEncodeError
 try:
     if hasattr(sys.stdout, "reconfigure"):

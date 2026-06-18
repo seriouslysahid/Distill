@@ -191,6 +191,11 @@ class VllmDataGenerator(GeneratorStep):
                 try:
                     subprocess.run([sys.executable, str(hotpatch_script)], check=True)
                     print("[OK] vLLM hotpatched successfully for Sarvam MoE/MLA architectures.\n")
+                    
+                    # Fix binary incompatibility by restoring NumPy <2
+                    print("Restoring NumPy <2 to prevent binary incompatibility with pandas/pyarrow...")
+                    subprocess.run([sys.executable, "-m", "pip", "install", "numpy<2"], check=True)
+                    print("[OK] NumPy <2 restored.\n")
                 except Exception as e:
                     print(f"[WARNING] Failed to run hotpatch_vllm.py: {e}\n")
 
@@ -553,6 +558,11 @@ def main():
                 import subprocess
                 subprocess.run([sys.executable, str(hotpatch_script)], check=True)
                 print("[OK] vLLM installation hotpatched successfully for Sarvam MoE/MLA architectures.\n")
+                
+                # Fix binary incompatibility by restoring NumPy <2
+                print("Restoring NumPy <2 to prevent binary incompatibility with pandas/pyarrow...")
+                subprocess.run([sys.executable, "-m", "pip", "install", "numpy<2"], check=True)
+                print("[OK] NumPy <2 restored.\n")
             except Exception as patch_err:
                 print(f"[WARNING] Failed to run hotpatch_vllm.py: {patch_err}\n")
     else:
