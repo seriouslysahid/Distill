@@ -192,120 +192,120 @@ class VllmDataGenerator(GeneratorStep):
         weights = [self.task_mix.get(t, 1.0) for t in task_types]
         languages = ["hi", "te", "ta", "en", "mr", "bn", "gu", "kn", "ml"]
 
-        # Step 1: Pre-plan metadata for all remaining samples
-        remaining_samples = self.num_samples - offset
-        print(f"Pre-planning {remaining_samples} samples across tasks starting from offset {offset}...")
-        
-        metadata = []
-        for _ in range(remaining_samples):
-            task_type = random.choices(task_types, weights=weights, k=1)[0]
-            lang = random.choice(languages)
-            difficulty = random.choice(["easy", "medium", "hard"])
-            style = "reasoning" if task_type == "reasoning" else ("spoken" if task_type == "speech_dialogue" else "conversational")
-            metadata.append({
-                "task_type": task_type,
-                "language": lang,
-                "difficulty": difficulty,
-                "style": style
-            })
+        generated_count = offset
+        while generated_count < self.num_samples:
+            current_batch_size = min(self.batch_size, self.num_samples - generated_count)
+            print(f"Generating batch of {current_batch_size} samples (Progress: {generated_count}/{self.num_samples})...")
+            
+            # Step 1: Pre-plan metadata for this batch
+            metadata = []
+            for _ in range(current_batch_size):
+                task_type = random.choices(task_types, weights=weights, k=1)[0]
+                lang = random.choice(languages)
+                difficulty = random.choice(["easy", "medium", "hard"])
+                style = "reasoning" if task_type == "reasoning" else ("spoken" if task_type == "speech_dialogue" else "conversational")
+                metadata.append({
+                    "task_type": task_type,
+                    "language": lang,
+                    "difficulty": difficulty,
+                    "style": style
+                })
 
-        # Step 2: Generate all USER instructions in one large parallel batch
-        print(f"Generating {remaining_samples} instructions in parallel using vLLM...")
-        instruction_prompts = []
-        for m in metadata:
-            prompt = self.vllm_instruction_gen.format(
-                task_type=m["task_type"],
-                language=m["language"]
+            # Step 2: Generate instructions for this batch
+            instruction_prompts = []
+            for m in metadata:
+                prompt = self.vllm_instruction_gen.format(
+                    task_type=m["task_type"],
+                    language=m["language"]
+                )
+                instruction_prompts.append(prompt)
+
+            sampling_params_inst = SamplingParams(
+                temperature=self.temperature + 0.1,
+                max_tokens=128,
+                skip_special_tokens=True
             )
-            instruction_prompts.append(prompt)
 
-        sampling_params_inst = SamplingParams(
-            temperature=self.temperature + 0.1,
-            max_tokens=128,
-            skip_special_tokens=True
-        )
-
-        outputs_inst = llm.generate(instruction_prompts, sampling_params_inst)
-        
-        instructions = []
-        valid_indices = []
-        for idx, out in enumerate(outputs_inst):
-            text = out.outputs[0].text.strip()
-            text = re.sub(r'^["\'\(]|[乌\'\)]$', '', text)
-            if len(text) > 5:
-                instructions.append(text)
-                valid_indices.append(idx)
-
-        # Keep only the valid pre-planned metadata
-        metadata = [metadata[i] for i in valid_indices]
-        num_valid = len(instructions)
-        print(f"Successfully generated {num_valid} valid instructions. Proceeding to response generation...")
-
-        # Step 3: Generate all responses in one large parallel batch
-        response_prompts = []
-        for idx, m in enumerate(metadata):
-            inst = instructions[idx]
-            if m["task_type"] == "reasoning":
-                prompt = self.vllm_response_reasoning.format(instruction=inst)
-            else:
-                prompt = self.vllm_response_standard.format(instruction=inst)
-            response_prompts.append(prompt)
-
-        sampling_params_resp = SamplingParams(
-            temperature=self.temperature,
-            max_tokens=self.max_new_tokens,
-            skip_special_tokens=True
-        )
-
-        print(f"Generating {num_valid} responses in parallel using vLLM...")
-        outputs_resp = llm.generate(response_prompts, sampling_params_resp)
-
-        # Step 4: Parse responses/rationales and construct samples
-        generated_samples = []
-        for idx, out in enumerate(outputs_resp):
-            m = metadata[idx]
-            inst = instructions[idx]
-            raw_text = out.outputs[0].text.strip()
+            outputs_inst = llm.generate(instruction_prompts, sampling_params_inst)
             
-            rationale = None
-            response = raw_text
+            instructions = []
+            valid_indices = []
+            for idx, out in enumerate(outputs_inst):
+                text = out.outputs[0].text.strip()
+                text = re.sub(r'^["\'\(]|[乌\'\)]$', '', text)
+                if len(text) > 5:
+                    instructions.append(text)
+                    valid_indices.append(idx)
+
+            # Keep only the valid pre-planned metadata
+            metadata = [metadata[i] for i in valid_indices]
+            num_valid = len(instructions)
             
-            if m["task_type"] == "reasoning":
-                if "[Rationale]" in raw_text and "[Response]" in raw_text:
-                    try:
-                        parts = raw_text.split("[Response]")
-                        rationale = parts[0].replace("[Rationale]", "").strip()
-                        response = parts[1].strip()
-                    except Exception as e:
-                        print(f"Warning: Failed to parse reasoning output sections: {e}")
-                        response = raw_text
-                elif "Rationale:" in raw_text:
-                    try:
-                        parts = raw_text.split("Response:") if "Response:" in raw_text else [raw_text]
-                        rationale = parts[0].replace("Rationale:", "").strip()
-                        response = parts[1].strip() if len(parts) > 1 else raw_text
-                    except Exception as e:
-                        print(f"Warning: Failed to parse reasoning colon sections: {e}")
-                        response = raw_text
+            if num_valid == 0:
+                print("Warning: Generated 0 valid instructions in this batch. Retrying...")
+                continue
+
+            # Step 3: Generate responses for this batch
+            response_prompts = []
+            for idx, m in enumerate(metadata):
+                inst = instructions[idx]
+                if m["task_type"] == "reasoning":
+                    prompt = self.vllm_response_reasoning.format(instruction=inst)
+                else:
+                    prompt = self.vllm_response_standard.format(instruction=inst)
+                response_prompts.append(prompt)
+
+            sampling_params_resp = SamplingParams(
+                temperature=self.temperature,
+                max_tokens=self.max_new_tokens,
+                skip_special_tokens=True
+            )
+
+            outputs_resp = llm.generate(response_prompts, sampling_params_resp)
+
+            # Step 4: Parse responses/rationales and construct batch samples
+            batch_samples = []
+            for idx, out in enumerate(outputs_resp):
+                m = metadata[idx]
+                inst = instructions[idx]
+                raw_text = out.outputs[0].text.strip()
+                
+                rationale = None
+                response = raw_text
+                
+                if m["task_type"] == "reasoning":
+                    if "[Rationale]" in raw_text and "[Response]" in raw_text:
+                        try:
+                            parts = raw_text.split("[Response]")
+                            rationale = parts[0].replace("[Rationale]", "").strip()
+                            response = parts[1].strip()
+                        except Exception as e:
+                            print(f"Warning: Failed to parse reasoning output sections: {e}")
+                            response = raw_text
+                    elif "Rationale:" in raw_text:
+                        try:
+                            parts = raw_text.split("Response:") if "Response:" in raw_text else [raw_text]
+                            rationale = parts[0].replace("Rationale:", "").strip()
+                            response = parts[1].strip() if len(parts) > 1 else raw_text
+                        except Exception as e:
+                            print(f"Warning: Failed to parse reasoning colon sections: {e}")
+                            response = raw_text
+                
+                batch_samples.append({
+                    "instruction": inst,
+                    "response": response,
+                    "rationale": rationale,
+                    "task_type": m["task_type"],
+                    "language": m["language"],
+                    "difficulty": m["difficulty"],
+                    "style": m["style"],
+                    "source_teacher": self.model_id
+                })
+
+            generated_count += len(batch_samples)
+            is_last = generated_count >= self.num_samples or len(batch_samples) == 0
             
-            generated_samples.append({
-                "instruction": inst,
-                "response": response,
-                "rationale": rationale,
-                "task_type": m["task_type"],
-                "language": m["language"],
-                "difficulty": m["difficulty"],
-                "style": m["style"],
-                "source_teacher": self.model_id
-            })
-            
-        print(f"Generated {len(generated_samples)} valid samples. Yielding in batches of {self.batch_size}...")
-        
-        # Yield samples in chunks of batch_size
-        for i in range(0, len(generated_samples), self.batch_size):
-            chunk = generated_samples[i : i + self.batch_size]
-            is_last = (offset + i + len(chunk)) >= self.num_samples or (i + self.batch_size) >= len(generated_samples)
-            yield chunk, is_last
+            yield batch_samples, is_last
 
 
 class TransformersDataGenerator(GeneratorStep):

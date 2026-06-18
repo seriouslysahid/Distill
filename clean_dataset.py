@@ -11,6 +11,7 @@ import re
 import yaml
 import argparse
 from pathlib import Path
+import binascii
 from collections import Counter
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -121,6 +122,25 @@ def check_duplicate_worker(index_range, threshold):
         if is_dup:
             duplicates.append(idx)
     return duplicates
+
+
+def compute_signatures_chunk(chunk_data):
+    """Worker function to compute MinHash signatures for a chunk of n-gram sets."""
+    # chunk_data is a list of (sample, ngrams)
+    signatures = []
+    num_hashes = 32
+    for _, ngrams in chunk_data:
+        sig = []
+        for i in range(num_hashes):
+            min_val = 0xffffffff
+            for ngram in ngrams:
+                # CRC32 hash (stable across processes)
+                val = binascii.crc32(f"{ngram}:{i}".encode('utf-8'))
+                if val < min_val:
+                    min_val = val
+            sig.append(min_val)
+        signatures.append(sig)
+    return signatures
 
 def process_single_sample_validation(sample_data):
     """Validates structure, length, repetition, and normalizes fields for a single raw sample."""
@@ -236,31 +256,50 @@ def clean_and_validate(config):
         print("[ERROR] No samples passed structural validation! Deduplication aborted.")
         return False
         
-    # Step 2: Parallel Jaccard Near-Deduplication
-    print("\n[Stage 2/2] Running parallel Jaccard near-deduplication...")
-    samples_list = [item[0] for item in validated_data]
-    ngrams_list = [item[1] for item in validated_data]
+    # Step 2: Parallel MinHash LSH Near-Deduplication
+    print("\n[Stage 2/2] Running parallel MinHash LSH near-deduplication...")
     
-    # Chunk indices to check
-    chunk_size = max(1, num_validated // (num_workers * 4))
-    index_chunks = [range(i, min(i + chunk_size, num_validated)) for i in range(0, num_validated, chunk_size)]
+    # Chunk data for parallel signature calculation
+    sig_chunk_size = max(1, num_validated // (num_workers * 2))
+    chunks = [validated_data[i : i + sig_chunk_size] for i in range(0, num_validated, sig_chunk_size)]
     
+    print(f"Computing MinHash signatures in parallel using {num_workers} workers...")
+    signatures = []
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(compute_signatures_chunk, chunk) for chunk in chunks]
+        for future in futures:
+            signatures.extend(future.result())
+            
+    # LSH Banding parameters: 32 hashes, 8 bands of size 4
+    num_hashes = 32
+    band_size = 4
+    num_bands = num_hashes // band_size
+    buckets = [{} for _ in range(num_bands)]
+    
+    print("Grouping signatures into LSH bands...")
+    candidate_pairs = set()
+    for idx in range(num_validated):
+        sig = signatures[idx]
+        for b in range(num_bands):
+            band_sig = tuple(sig[b * band_size : (b + 1) * band_size])
+            if band_sig in buckets[b]:
+                for prev_idx in buckets[b][band_sig]:
+                    candidate_pairs.add((prev_idx, idx))
+                buckets[b][band_sig].append(idx)
+            else:
+                buckets[b][band_sig] = [idx]
+                
+    print(f"Found {len(candidate_pairs)} candidate pairs. Verifying with exact Jaccard similarity...")
     duplicate_indices = set()
+    samples_list = [item[0] for item in validated_data]
     
-    # Run pairwise comparisons in parallel using global shared n-grams lists
-    with ProcessPoolExecutor(max_workers=num_workers, initializer=init_worker, initargs=(ngrams_list,)) as executor:
-        futures = [
-            executor.submit(check_duplicate_worker, chunk, near_dup_thresh)
-            for chunk in index_chunks
-        ]
-        
-        for future in as_completed(futures):
-            try:
-                dups = future.result()
-                duplicate_indices.update(dups)
-            except Exception as e:
-                print(f"[ERROR] Deduplication subprocess failed: {e}")
-                raise RuntimeError(f"Deduplication process execution failure: {e}")
+    # Verify candidate pairs using exact Jaccard calculation
+    for prev_idx, idx in sorted(candidate_pairs, key=lambda x: (x[1], x[0])):
+        if prev_idx in duplicate_indices or idx in duplicate_indices:
+            continue
+        sim = jaccard_similarity(validated_data[prev_idx][1], validated_data[idx][1])
+        if sim > near_dup_thresh:
+            duplicate_indices.add(idx)
             
     # Filter out duplicate indices
     cleaned_samples = [
