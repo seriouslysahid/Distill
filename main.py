@@ -121,9 +121,11 @@ def cleanup_zombie_gpus():
                 import time
                 time.sleep(2)
             print(f"{border}\n")
-    except Exception:
-        # Ignore errors (e.g. nvidia-smi not available on local CPU-only tests)
+    except FileNotFoundError:
+        # Ignore if nvidia-smi is not installed (e.g. CPU-only local environment)
         pass
+    except Exception as e:
+        print(f"[WARNING] GPU cleanup failed: {e}")
 
 def generate_step(args, config):
     """Run the synthetic generation step."""
