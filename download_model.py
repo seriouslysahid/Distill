@@ -30,6 +30,24 @@ from huggingface_hub import snapshot_download, HfApi
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 from accelerate import init_empty_weights
 
+# Hotpatch Hugging Face transformers compatibility issues
+try:
+    from transformers.modeling_rope_utils import RotaryEmbeddingConfigMixin
+    _orig_validate_rope = RotaryEmbeddingConfigMixin.validate_rope
+    def _patched_validate_rope(self, *args, **kwargs):
+        kwargs.pop("ignore_keys", None)
+        return _orig_validate_rope(self, *args, **kwargs)
+    RotaryEmbeddingConfigMixin.validate_rope = _patched_validate_rope
+except Exception:
+    pass
+
+try:
+    import transformers.utils.import_utils as imp_utils
+    if not hasattr(imp_utils, "is_torch_fx_available"):
+        imp_utils.is_torch_fx_available = lambda: False
+except Exception:
+    pass
+
 def get_free_space_gb(path):
     """Return free disk space in Gigabytes."""
     total, used, free = shutil.disk_usage(path)

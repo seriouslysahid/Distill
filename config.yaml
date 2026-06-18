@@ -18,6 +18,7 @@ generation:
   gpu_memory_utilization: 0.90
   max_model_len: 4096
   tensor_parallel_size: 1 # Increase this to match the selected GPU quantity if using 2x or 4x H100s
+  quantization: null # Set to "fp8", "awq", or "gptq" for quantized models (e.g. sarvam-105b-fp8)
 
 prompts:
   # vLLM prompt templates

@@ -19,6 +19,8 @@ from clean_dataset import (
     process_single_sample_validation
 )
 
+from generate_dataset import parse_reasoning_output, ISO_TO_FULL_LANG
+
 def test_get_char_ngrams():
     """Verify n-gram tokenization, whitespace stripping, and case insensitivity."""
     text1 = "Hello World"
@@ -153,3 +155,37 @@ def test_process_single_sample_validation():
     invalid_sample_6["rationale"] = None
     res, status = process_single_sample_validation((invalid_sample_6, *params))
     assert status == "missing_reasoning_rationale"
+
+def test_parse_reasoning_output():
+    """Verify robust case-insensitive rationale/response extraction."""
+    # Format 1: [Rationale] / [Response]
+    t1 = "[Rationale] This is a rationale block.\n[Response] This is the final response."
+    rat, resp = parse_reasoning_output(t1)
+    assert rat == "This is a rationale block."
+    assert resp == "This is the final response."
+
+    # Format 2: Rationale: / Response: (case-insensitive, spaces)
+    t2 = "RATIONALE: Think step by step.\n  reSpoNse: The result is 42."
+    rat, resp = parse_reasoning_output(t2)
+    assert rat == "Think step by step."
+    assert resp == "The result is 42."
+
+    # Format 3: No matching tags
+    t3 = "Just a standard output."
+    rat, resp = parse_reasoning_output(t3)
+    assert rat is None
+    assert resp == t3
+
+    # Format 4: Avoid matching 'responsibility'
+    t4 = "My responsibility is great. Response: Understood."
+    rat, resp = parse_reasoning_output(t4)
+    assert rat == "My responsibility is great."
+    assert resp == "Understood."
+
+def test_iso_to_full_lang():
+    """Verify language tag translation mapping."""
+    assert ISO_TO_FULL_LANG["en"] == "English"
+    assert ISO_TO_FULL_LANG["hi"] == "Hindi"
+    assert ISO_TO_FULL_LANG["te"] == "Telugu"
+    assert ISO_TO_FULL_LANG["ta"] == "Tamil"
+

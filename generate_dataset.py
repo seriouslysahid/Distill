@@ -14,12 +14,30 @@ import re
 import warnings
 warnings.filterwarnings("ignore")
 from pathlib import Path
-from typing import Generator, List, Dict, Any, Tuple
+from typing import Generator, List, Dict, Any, Tuple, Optional
 
 # Distilabel imports
 from distilabel.pipeline import Pipeline
 from distilabel.steps import GeneratorStep, StepInput, StepOutput
 from distilabel.steps.base import Step
+
+# Hotpatch Hugging Face transformers compatibility issues
+try:
+    from transformers.modeling_rope_utils import RotaryEmbeddingConfigMixin
+    _orig_validate_rope = RotaryEmbeddingConfigMixin.validate_rope
+    def _patched_validate_rope(self, *args, **kwargs):
+        kwargs.pop("ignore_keys", None)
+        return _orig_validate_rope(self, *args, **kwargs)
+    RotaryEmbeddingConfigMixin.validate_rope = _patched_validate_rope
+except Exception:
+    pass
+
+try:
+    import transformers.utils.import_utils as imp_utils
+    if not hasattr(imp_utils, "is_torch_fx_available"):
+        imp_utils.is_torch_fx_available = lambda: False
+except Exception:
+    pass
 
 # Force UTF-8 stdout/stderr on Windows to prevent UnicodeEncodeError
 try:
@@ -29,6 +47,45 @@ try:
         sys.stderr.reconfigure(encoding="utf-8")
 except Exception:
     pass
+
+
+# Language mapping dictionary
+ISO_TO_FULL_LANG = {
+    "en": "English",
+    "hi": "Hindi",
+    "te": "Telugu",
+    "ta": "Tamil",
+    "mr": "Marathi",
+    "bn": "Bengali",
+    "gu": "Gujarati",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "or": "Odia",
+    "pa": "Punjabi",
+    "as": "Assamese"
+}
+
+
+def parse_reasoning_output(text: str) -> Tuple[Optional[str], str]:
+    """Parse reasoning outputs using robust case-insensitive regex parsing.
+    
+    Supports formats like:
+      - [Rationale] ... [Response] ...
+      - Rationale: ... Response: ...
+    """
+    # Look for [Response] or Response: case-insensitively
+    match = re.search(r'\[response\]|\bresponse\b\s*:', text, re.IGNORECASE)
+    if match:
+        split_idx = match.start()
+        part_before = text[:split_idx]
+        part_after = text[match.end():]
+        
+        # Clean up [Rationale] or Rationale: from the part_before
+        rationale = re.sub(r'\[rationale\]|\brationale\b\s*:', '', part_before, flags=re.IGNORECASE).strip()
+        response = part_after.strip()
+        return rationale, response
+        
+    return None, text
 
 
 def _generate_mock_data_fallback(num_samples: int, task_mix: Dict[str, float], mock_templates_file: str) -> List[Dict[str, Any]]:
@@ -162,6 +219,7 @@ class VllmDataGenerator(GeneratorStep):
     temperature: float = 0.7
     max_new_tokens: int = 512
     local_dir: str = "./models/teacher"
+    quantization: Optional[str] = None
     
     # Configurable prompt templates loaded from config.yaml
     vllm_instruction_gen: str = ""
@@ -209,14 +267,28 @@ class VllmDataGenerator(GeneratorStep):
         import traceback
         
         try:
-            print(f"Initializing vLLM Engine on H100 GPU for model '{self.model_id}'...")
+            # Resolve model path: check if local_dir exists and contains config.json and weights files
+            model_path = self.model_id
+            local_path = Path(self.local_dir)
+            if local_path.exists() and (local_path / "config.json").exists():
+                weight_files = list(local_path.glob("*.safetensors")) + list(local_path.glob("*.bin"))
+                if weight_files:
+                    model_path = str(local_path.resolve().as_posix())
+                    print(f"Loading teacher model from local storage directory: '{model_path}'")
+                else:
+                    print(f"Local storage directory exists but no weight files found. Defaulting to registry: '{model_path}'")
+            else:
+                print(f"Using default model repository registry target: '{model_path}'")
+
+            print(f"Initializing vLLM Engine on H100 GPU for model '{model_path}' (quantization: {self.quantization})...")
             llm = LLM(
-                model=self.model_id,
+                model=model_path,
                 gpu_memory_utilization=self.gpu_memory_utilization,
                 max_model_len=self.max_model_len,
                 tensor_parallel_size=self.tensor_parallel_size,
                 dtype="bfloat16",  # Optimized for H100 hardware
-                trust_remote_code=True
+                trust_remote_code=True,
+                quantization=self.quantization
             )
 
             task_types = list(self.task_mix.keys())
@@ -245,9 +317,10 @@ class VllmDataGenerator(GeneratorStep):
                 # Step 2: Generate instructions for this batch
                 instruction_prompts = []
                 for m in metadata:
+                    full_lang = ISO_TO_FULL_LANG.get(m["language"], m["language"])
                     prompt = self.vllm_instruction_gen.format(
                         task_type=m["task_type"],
-                        language=m["language"]
+                        language=full_lang
                     )
                     instruction_prompts.append(prompt)
 
@@ -263,7 +336,7 @@ class VllmDataGenerator(GeneratorStep):
                 valid_indices = []
                 for idx, out in enumerate(outputs_inst):
                     text = out.outputs[0].text.strip()
-                    text = re.sub(r'^["\'\(]|[乌\'\)]$', '', text)
+                    text = re.sub(r'^["\'\(]|["\'\)]$', '', text)
                     if len(text) > 5:
                         instructions.append(text)
                         valid_indices.append(idx)
@@ -305,22 +378,11 @@ class VllmDataGenerator(GeneratorStep):
                     response = raw_text
                     
                     if m["task_type"] == "reasoning":
-                        if "[Rationale]" in raw_text and "[Response]" in raw_text:
-                            try:
-                                parts = raw_text.split("[Response]")
-                                rationale = parts[0].replace("[Rationale]", "").strip()
-                                response = parts[1].strip()
-                            except Exception as e:
-                                print(f"Warning: Failed to parse reasoning output sections: {e}")
-                                response = raw_text
-                        elif "Rationale:" in raw_text:
-                            try:
-                                parts = raw_text.split("Response:") if "Response:" in raw_text else [raw_text]
-                                rationale = parts[0].replace("Rationale:", "").strip()
-                                response = parts[1].strip() if len(parts) > 1 else raw_text
-                            except Exception as e:
-                                print(f"Warning: Failed to parse reasoning colon sections: {e}")
-                                response = raw_text
+                        try:
+                            rationale, response = parse_reasoning_output(raw_text)
+                        except Exception as e:
+                            print(f"Warning: Failed to parse reasoning output: {e}")
+                            response = raw_text
                     
                     batch_samples.append({
                         "instruction": inst,
@@ -352,6 +414,8 @@ class TransformersDataGenerator(GeneratorStep):
     num_samples: int
     task_mix: Dict[str, float]
     batch_size: int = 10
+    local_dir: str = "./models/teacher"
+    quantization: Optional[str] = None
     
     # Configurable prompt templates loaded from config.yaml
     transformers_instruction_gen: str = ""
@@ -366,23 +430,44 @@ class TransformersDataGenerator(GeneratorStep):
         from transformers import pipeline
         import torch
         
-        print(f"Loading model '{self.model_id}' in local transformers pipeline...")
+        # Resolve model path: check if local_dir exists and contains config.json and weights files
+        model_path = self.model_id
+        local_path = Path(self.local_dir)
+        if local_path.exists() and (local_path / "config.json").exists():
+            weight_files = list(local_path.glob("*.safetensors")) + list(local_path.glob("*.bin"))
+            if weight_files:
+                model_path = str(local_path.resolve().as_posix())
+                print(f"Loading teacher model from local storage directory: '{model_path}'")
+            else:
+                print(f"Local storage directory exists but no weight files found. Defaulting to registry: '{model_path}'")
+        else:
+            print(f"Using default model repository registry target: '{model_path}'")
+
+        print(f"Loading model '{model_path}' in local transformers pipeline (quantization: {self.quantization})...")
+        pipeline_kwargs = {
+            "task": "text-generation",
+            "model": model_path,
+            "torch_dtype": torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            "device_map": "auto"
+        }
+        if self.quantization:
+            if self.quantization in ["4bit", "int4"]:
+                pipeline_kwargs["model_kwargs"] = {"load_in_4bit": True}
+            elif self.quantization in ["8bit", "int8"]:
+                pipeline_kwargs["model_kwargs"] = {"load_in_8bit": True}
+
         try:
-            generator = pipeline(
-                "text-generation",
-                model=self.model_id,
-                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-                device_map="auto"
-            )
+            generator = pipeline(**pipeline_kwargs)
             print("Local model loaded successfully.")
         except Exception as e:
             print(f"[WARNING] Failed to load transformers pipeline: {e}. Falling back to CPU...")
             try:
-                generator = pipeline(
-                    "text-generation",
-                    model=self.model_id,
-                    device_map="cpu"
-                )
+                cpu_kwargs = {
+                    "task": "text-generation",
+                    "model": model_path,
+                    "device_map": "cpu"
+                }
+                generator = pipeline(**cpu_kwargs)
             except Exception as cpu_err:
                 print(f"[ERROR] Failed to load model on CPU: {cpu_err}")
                 raise RuntimeError(f"Could not load model locally: {cpu_err}")
@@ -400,9 +485,10 @@ class TransformersDataGenerator(GeneratorStep):
                 task_type = random.choices(task_types, weights=weights, k=1)[0]
                 lang = random.choice(languages)
                 
+                full_lang = ISO_TO_FULL_LANG.get(lang, lang)
                 prompt_generation_query = self.transformers_instruction_gen.format(
                     task_type=task_type,
-                    lang=lang
+                    lang=full_lang
                 )
                 
                 try:
@@ -430,16 +516,12 @@ class TransformersDataGenerator(GeneratorStep):
                 rationale = None
                 response = raw_output
                 
-                if task_type == "reasoning" and "[Rationale]" in raw_output and "[Response]" in raw_output:
+                if task_type == "reasoning":
                     try:
-                        parts = raw_output.split("[Response]")
-                        rationale = parts[0].replace("[Rationale]", "").strip()
-                        response = parts[1].strip()
+                        rationale, response = parse_reasoning_output(raw_output)
                     except Exception as parse_err:
                         print(f"Warning: Failed to parse reasoning sections in transformers output: {parse_err}")
                         response = raw_output
-                else:
-                    response = raw_output
                     
                 difficulty = random.choice(["easy", "medium", "hard"])
                 style = "reasoning" if task_type == "reasoning" else ("spoken" if task_type == "speech_dialogue" else "conversational")
@@ -491,6 +573,7 @@ def build_pipeline(config: Dict[str, Any]) -> Pipeline:
                 temperature=config["generation"].get("temperature", 0.7),
                 max_new_tokens=config["generation"].get("max_new_tokens", 512),
                 local_dir=config["model"].get("local_dir", "./models/teacher"),
+                quantization=config["generation"].get("quantization", None),
                 vllm_instruction_gen=prompts.get("vllm_instruction_gen", ""),
                 vllm_response_standard=prompts.get("vllm_response_standard", ""),
                 vllm_response_reasoning=prompts.get("vllm_response_reasoning", "")
@@ -503,6 +586,8 @@ def build_pipeline(config: Dict[str, Any]) -> Pipeline:
                 num_samples=num_samples,
                 task_mix=task_mix,
                 batch_size=config["generation"].get("batch_size", 10),
+                local_dir=config["model"].get("local_dir", "./models/teacher"),
+                quantization=config["generation"].get("quantization", None),
                 transformers_instruction_gen=prompts.get("transformers_instruction_gen", ""),
                 transformers_response_standard=prompts.get("transformers_response_standard", ""),
                 transformers_response_reasoning=prompts.get("transformers_response_reasoning", "")

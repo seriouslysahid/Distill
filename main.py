@@ -190,8 +190,10 @@ Commands:
         # 1. Download & Verify (defaulting to config_only if running locally for safety)
         if not args.verify_only and not args.model_id:
             # If running all without specific model overrides, let's enforce config_only to verify architecture
-            # unless the user specifies otherwise
-            args.config_only = True
+            # unless a real backend is selected or the user specifies otherwise
+            backend = args.backend or config.get("generation", {}).get("backend", "mock")
+            if backend == "mock":
+                args.config_only = True
         
         if download_step(args, config):
             # 2. Generate
