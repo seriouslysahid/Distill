@@ -102,6 +102,13 @@ Commands:
     args = parser.parse_args()
     config = load_config(args.config)
 
+    # Redirect HF cache to the configured local storage directory to prevent home disk exhaustion
+    local_dir = args.local_dir or config.get("model", {}).get("local_dir", "./models/teacher")
+    hf_cache_dir = os.path.abspath(os.path.join(local_dir, ".cache"))
+    os.makedirs(hf_cache_dir, exist_ok=True)
+    os.environ["HF_HOME"] = hf_cache_dir
+    os.environ["HF_MODULES_CACHE"] = os.path.join(hf_cache_dir, "modules")
+
     success = False
     if args.command == "download":
         success = download_step(args, config)

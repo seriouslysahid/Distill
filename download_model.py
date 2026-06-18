@@ -91,6 +91,12 @@ def main():
     model_id = args.model_id or cfg.get("model", {}).get("teacher_id", "sarvamai/sarvam-2b-v0.5")
     local_dir = args.local_dir or cfg.get("model", {}).get("local_dir", "./models/teacher")
     
+    # Redirect HF cache to prevent home directory disk exhaustion
+    hf_cache_dir = os.path.abspath(os.path.join(local_dir, ".cache"))
+    os.makedirs(hf_cache_dir, exist_ok=True)
+    os.environ["HF_HOME"] = hf_cache_dir
+    os.environ["HF_MODULES_CACHE"] = os.path.join(hf_cache_dir, "modules")
+    
     # Retrieve HF Token if available
     token_var = cfg.get("model", {}).get("token_env_var", "HF_TOKEN")
     hf_token = os.environ.get(token_var, None)

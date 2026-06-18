@@ -497,6 +497,13 @@ def main():
     with open(args.config, "r") as f:
         config = yaml.safe_load(f)
 
+    # Redirect HF cache to prevent home directory disk exhaustion
+    local_dir = config.get("model", {}).get("local_dir", "./models/teacher")
+    hf_cache_dir = os.path.abspath(os.path.join(local_dir, ".cache"))
+    os.makedirs(hf_cache_dir, exist_ok=True)
+    os.environ["HF_HOME"] = hf_cache_dir
+    os.environ["HF_MODULES_CACHE"] = os.path.join(hf_cache_dir, "modules")
+
     # CLI overrides
     if args.backend:
         config["generation"]["backend"] = args.backend
