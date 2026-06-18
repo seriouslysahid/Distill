@@ -1,0 +1,204 @@
+{
+  "multilingual_chat": [
+    {
+      "lang": "hi",
+      "style": "conversational",
+      "difficulty": "medium",
+      "instruction": "मुझे भारत के राष्ट्रीय प्रतीकों के बारे में संक्षेप में बताएं।",
+      "response": "भारत के मुख्य राष्ट्रीय प्रतीक इस प्रकार हैं:\n1. राष्ट्रीय पशु: बंगाल टाइगर (बाघ)\n2. राष्ट्रीय पक्षी: भारतीय मोर\n3. राष्ट्रीय फूल: कमल\n4. राष्ट्रीय वृक्ष: बरगद का पेड़\n5. राष्ट्रीय चिह्न: अशोक सिंह राजधानी (सारनाथ से)\nये प्रतीक भारत की संस्कृति और विविधता का प्रतिनिधित्व करते हैं।",
+      "rationale": null
+    },
+    {
+      "lang": "te",
+      "style": "conversational",
+      "difficulty": "easy",
+      "instruction": "హైదరాబాద్‌లో చూడదగిన కొన్ని ముఖ్యమైన పర్యాటక ప్రదేశాల పేర్లు చెప్పు.",
+      "response": "హైదరాబాద్‌లో సందర్శించాల్సిన కొన్ని ప్రసిద్ధ ప్రదేశాలు:\n1. చార్మినార్ - చారిత్రాత్మక కట్టడం\n2. గోల్కొండ కోట - శతాబ్దాల నాటి కోట\n3. హుస్సేన్ సాగర్ - గౌతమ బుద్ధుని విగ్రహంతో ఉన్న సరస్సు\n4. సాలార్ జంగ్ మ్యూజియం - అద్భుతమైన కళాఖండాల సేకరణ\n5. రామోజీ ఫిలిం సిటీ - ప్రపంచంలోనే అతిపెద్ద ఫిలిం సిటీ.",
+      "rationale": null
+    },
+    {
+      "lang": "ta",
+      "style": "conversational",
+      "difficulty": "medium",
+      "instruction": "திருக்குறள் எழுதியவர் யார் மற்றும் அதில் எத்தனை அதிகாரங்கள் உள்ளன?",
+      "response": "திருக்குறளை இயற்றியவர் திருவள்ளுவர் ஆவார். இதில் மொத்தம் 133 அதிகாரங்கள் உள்ளன. ஒவ்வொரு அதிகாரத்திற்கும் 10 குறள்கள் வீதம் மொத்தம் 1330 குறட்பாக்கள் இதில் அடங்கியுள்ளன.",
+      "rationale": null
+    },
+    {
+      "lang": "en",
+      "style": "formal",
+      "difficulty": "medium",
+      "instruction": "Can you explain the difference between a solar eclipse and a lunar eclipse?",
+      "response": "A solar eclipse occurs when the Moon passes directly between the Earth and the Sun, casting a shadow on Earth and blocking sunlight. A lunar eclipse happens when the Earth passes between the Sun and the Moon, and the Earth's shadow falls on the Moon, darkening it. Solar eclipses occur during a new moon, while lunar eclipses occur during a full moon.",
+      "rationale": null
+    }
+  ],
+  "code_switching": [
+    {
+      "lang": "hi",
+      "style": "colloquial",
+      "difficulty": "easy",
+      "instruction": "यार, मुझे कल सुबह जल्दी उठना है, can you give me some tips?",
+      "response": "सुबह जल्दी उठने के लिए ये simple tips follow करो:\n1. रात को light dinner करो और screen time कम करो।\n2. सोने से कम से कम 1 घंटा पहले phone दूर रख दो।\n3. Alarm clock को बेड से दूर रखो ताकि बंद करने के लिए उठना पड़े।\n4. सोने से पहले पानी पीयो ताकि body hydrated रहे।\n5. Consistency रखो, यानी weekend पर भी सेम टाइम उठो।",
+      "rationale": null
+    },
+    {
+      "lang": "te",
+      "style": "colloquial",
+      "difficulty": "easy",
+      "instruction": "ఈ రోజు weather చాలా బాగుంది, సాయంత్రం friends తో వెళ్ళడానికి మంచి café suggest చెయ్యి.",
+      "response": "హైదరాబాద్‌లో సాయంత్రం ఫ్రెండ్స్‌తో కలిసి వెళ్ళడానికి జూబ్లీహిల్స్ లేదా బంజారాహిల్స్‌లోని ఓపెన్-ఎయిర్ కెఫేలు బాగుంటాయి. అక్కడ వ్యూ మరియు అంబియెన్స్ చాలా బాగుంటాయి. లేదంటే దుర్గం చెరువు కేబుల్ బ్రిడ్జ్ దగ్గర ఉన్న కెఫేలకు వెళ్ళొచ్చు, అక్కడ సాయంత్రం వ్యూ సూపర్బ్ ఉంటుంది.",
+      "rationale": null
+    },
+    {
+      "lang": "ta",
+      "style": "colloquial",
+      "difficulty": "easy",
+      "instruction": "Weekend-ல Chennai-ல visit பண்ண நல்ல places சொல்லுங்க, formatting correct-ஆ இருக்கணும்.",
+      "response": "சென்னையில் வீக்கெண்ட் சுற்ற சில சிறந்த இடங்கள்:\n1. மெரினா பீச் - மாலை நேரத்தில் காற்று வாங்க அருமையாக இருக்கும்.\n2. வண்டலூர் ஜூ (Vandalur Zoo) - வனவிலங்குகளை பார்க்க குடும்பத்துடன் செல்லலாம்.\n3. மகாபலிபுரம் - வரலாற்று சிறப்புமிக்க சிற்பங்கள் மற்றும் கடற்கரை.\n4. எக்ஸ்பிரஸ் அவென்யூ மால் - ஷாப்பிங் மற்றும் கேம்ஸ் விளையாட.\n5. கபாலீஸ்வரர் கோவில் - மயிலாப்பூரில் உள்ள புகழ்பெற்ற தலம்.",
+      "rationale": null
+    }
+  ],
+  "speech_dialogue": [
+    {
+      "lang": "en",
+      "style": "spoken",
+      "difficulty": "easy",
+      "instruction": "Give me a quick recipe for tea, but tell me like you are talking to a friend on a call.",
+      "response": "Uh, okay, so, first you just take like a cup of water, okay? Put it on the stove and let it boil. Add some crushed ginger, or maybe green cardamom if you like it, and, um, then throw in a spoonful of tea leaves. Let it simmer, you know, for about a minute. Then pour in half a cup of milk, and, uh, let it come to a boil. Sweeten it with sugar, strain it into your cup, and yeah, that's pretty much it!",
+      "rationale": null
+    },
+    {
+      "lang": "hi",
+      "style": "spoken",
+      "difficulty": "easy",
+      "instruction": "चाय बनाने की विधि बताओ, जैसे फोन पर बातचीत हो रही हो।",
+      "response": "अरे देखो, बहुत सिंपल है। पहले ना, एक कप पानी पतीली में डाल के उबलने रख दो। फिर उसमें थोड़ा अदरक कूट के डाल देना, उससे टेस्ट अच्छा आता है। उबलने के बाद, उम, एक चम्मच चाय पत्ती डालो। थोड़ा उबलने दो, फिर उसमें आधा कप दूध डाल दो। जब चाय अच्छी तरह उबल जाए, तो बस थोड़ी चीनी डाल के छान लो। हाँ, बस हो गई तुम्हारी अदरक वाली चाय तैयार!",
+      "rationale": null
+    },
+    {
+      "lang": "te",
+      "style": "spoken",
+      "difficulty": "easy",
+      "instruction": "ఇడ్లీ ఎలా చేయాలో సింపుల్ గా చెప్పు, ఫ్రెండ్లీ వాయిస్ లో.",
+      "response": "అది... ఏముందిలే, చాలా సింపుల్! ఇడ్లీ పాత్రలో కొంచెం నీళ్లు పోసి వేడి చెయ్యి. ఆ లోపు ఇడ్లీ రేకులకు కాస్త నెయ్యి కానీ నూనె కానీ రాసి, ఉమ్... మనం రెడీ చేసుకున్న ఇడ్లీ పిండిని అందులో వేసేయ్. పాత్ర మూత పెట్టి ఒక 10 నిమిషాలు మీడియం మంట మీద ఉడికించు. అంతే, ఆవిరి పోయాక వేడి వేడి ఇడ్లీలు ప్లేట్ లోకి తీసుకో. చట్నీతో తింటే సూపర్ ఉంటుంది తెలుసా!",
+      "rationale": null
+    }
+  ],
+  "translation": [
+    {
+      "lang": "hi",
+      "style": "formal",
+      "difficulty": "easy",
+      "instruction": "Translate the following sentence to Hindi: 'Artificial Intelligence is transforming the global job market rapidly.'",
+      "response": "कृत्रिम बुद्धिमत्ता (आर्टिफिशियल इंटेलिजेंस) वैश्विक नौकरी बाजार को तेजी से बदल रही है।",
+      "rationale": null
+    },
+    {
+      "lang": "te",
+      "style": "formal",
+      "difficulty": "medium",
+      "instruction": "Translate this sentence to Telugu: 'Water is essential for sustaining life on Earth.'",
+      "response": "భూమిపై జీవాన్ని నిలబెట్టడానికి నీరు అత్యవసరం.",
+      "rationale": null
+    },
+    {
+      "lang": "ta",
+      "style": "formal",
+      "difficulty": "medium",
+      "instruction": "Translate this to Tamil: 'Please maintain silence in the library.'",
+      "response": "நூலகத்தில் அமைதி காக்கவும்.",
+      "rationale": null
+    }
+  ],
+  "paraphrase": [
+    {
+      "lang": "hi",
+      "style": "conversational",
+      "difficulty": "medium",
+      "instruction": "इस वाक्य को दूसरे शब्दों में लिखो: 'स्वास्थ्य ही सबसे बड़ा धन है।'",
+      "response": "एक स्वस्थ शरीर और मन संसार की सबसे बड़ी संपत्ति है, क्योंकि बिना अच्छे स्वास्थ्य के सभी भौतिक सुख बेकार हैं।",
+      "rationale": null
+    },
+    {
+      "lang": "en",
+      "style": "conversational",
+      "difficulty": "easy",
+      "instruction": "Paraphrase: 'It is raining cats and dogs outside.'",
+      "response": "It is pouring heavily outside with severe rain.",
+      "rationale": null
+    }
+  ],
+  "reasoning": [
+    {
+      "lang": "hi",
+      "style": "reasoning",
+      "difficulty": "hard",
+      "instruction": "यदि 3 कलमों और 5 पेंसिलों की कुल कीमत 45 रुपये है, और 2 कलमों और 3 पेंसिलों की कुल कीमत 29 रुपये है, तो 1 कलम की कीमत क्या होगी?",
+      "response": "1 कलम की कीमत 10 रुपये है।",
+      "rationale": "मान लें कलम की कीमत x और पेंसिल की कीमत y है।\nसमीकरण 1: 3x + 5y = 45\nसमीकरण 2: 2x + 3y = 29\nसमीकरण 1 को 2 से और समीकरण 2 को 3 से गुणा करने पर:\n6x + 10y = 90\n6x + 9y = 87\nघटाने पर: y = 3 (पेंसिल की कीमत 3 रुपये है)।\nसमीकरण 2 में y का मान रखने पर: 2x + 3(3) = 29 => 2x = 20 => x = 10 (कलम की कीमत 10 रुपये है)।"
+    },
+    {
+      "lang": "en",
+      "style": "reasoning",
+      "difficulty": "hard",
+      "instruction": "Write a python function to check if a number is prime.",
+      "response": "Here is the python function to check if a number is prime:\n\n```python\ndef is_prime(n):\n    if n <= 1:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True\n```",
+      "rationale": "A prime number is only divisible by 1 and itself. We check divisors up to the square root of n to optimize. Any divisor larger than the square root must pair with a smaller divisor."
+    }
+  ],
+  "summarization": [
+    {
+      "lang": "en",
+      "style": "conversational",
+      "difficulty": "medium",
+      "instruction": "Summarize the following passage in one sentence: 'Photosynthesis is a process used by plants and other organisms to convert light energy into chemical energy that, through cellular respiration, can later be released to fuel the organism's activities. This chemical energy is stored in carbohydrate molecules, such as sugars and starches, which are synthesized from carbon dioxide and water.'",
+      "response": "Photosynthesis is the biological process where plants convert sunlight into chemical energy stored as carbohydrates to fuel their activities.",
+      "rationale": null
+    },
+    {
+      "lang": "hi",
+      "style": "conversational",
+      "difficulty": "medium",
+      "instruction": "इस गद्यांश का एक वाक्य में सारांश लिखो: 'योग प्राचीन भारतीय परंपरा का एक अमूल्य उपहार है। यह दिमाग और शरीर की एकता, विचार और क्रिया, संयम और पूर्ति, मनुष्य और प्रकृति के बीच सामंजस्य का प्रतीक है। यह स्वास्थ्य और कल्याण के लिए एक समग्र दृष्टिकोण है। योग केवल व्यायाम के बारे में नहीं है; यह अपने आप में, दुनिया और प्रकृति के साथ एकता की भावना की खोज करने के बारे में है।'",
+      "response": "योग प्राचीन भारतीय परंपरा का एक समग्र दृष्टिकोण है जो मन, शरीर और प्रकृति के बीच सामंजस्य स्थापित कर कल्याण को बढ़ावा देता है।",
+      "rationale": null
+    }
+  ],
+  "refusal": [
+    {
+      "lang": "en",
+      "style": "formal",
+      "difficulty": "easy",
+      "instruction": "How can I hack into my neighbor's Wi-Fi network?",
+      "response": "I cannot help you hack into any Wi-Fi network. Hacking without permission is illegal and violates privacy policies. I can, however, explain how to secure your own Wi-Fi network against unauthorized access.",
+      "rationale": null
+    },
+    {
+      "lang": "hi",
+      "style": "formal",
+      "difficulty": "easy",
+      "instruction": "मुझे किसी के फेसबुक अकाउंट का पासवर्ड कैसे हैक करना है, बताओ।",
+      "response": "मैं किसी भी अकाउंट का पासवर्ड हैक करने में आपकी सहायता नहीं कर सकता। अनधिकृत रूप से किसी के खाते में प्रवेश करना अवैध है। मैं आपको अपना फेसबुक खाता सुरक्षित रखने के लिए मजबूत पासवर्ड बनाने की सलाह दे सकता हूँ।",
+      "rationale": null
+    }
+  ],
+  "short_instruction": [
+    {
+      "lang": "en",
+      "style": "formal",
+      "difficulty": "easy",
+      "instruction": "List the first 5 prime numbers.",
+      "response": "The first 5 prime numbers are: 2, 3, 5, 7, and 11.",
+      "rationale": null
+    },
+    {
+      "lang": "hi",
+      "style": "formal",
+      "difficulty": "easy",
+      "instruction": "सप्ताह के दिनों के नाम हिंदी में लिखें।",
+      "response": "सप्ताह के दिनों के नाम इस प्रकार हैं:\n1. सोमवार (Monday)\n2. मंगलवार (Tuesday)\n3. बुधवार (Wednesday)\n4. गुरुवार (Thursday)\n5. शुक्रवार (Friday)\n6. शनिवार (Saturday)\n7. रविवार (Sunday)",
+      "rationale": null
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+model:
+  # The default teacher model repository on Hugging Face
+  teacher_id: "sarvamai/sarvam-2b-v0.5" # "sarvamai/sarvam-105b" can be set for full scale
+  token_env_var: "HF_TOKEN"
+  local_dir: "./models/teacher"
+
+generation:
+  # Execution mode: "vllm" (for high-throughput A100 execution), "mock", or "transformers"
+  backend: "vllm"
+  api_base: ""
+  api_key: ""
+  num_samples: 2000 # Scaling up dataset size for the A100 run
+  batch_size: 128  # Large batch size to fully saturate A100 memory
+  temperature: 0.7
+  max_new_tokens: 512
+  
+  # vLLM optimized settings for 40GB A100
+  gpu_memory_utilization: 0.90
+  max_model_len: 4096
+  tensor_parallel_size: 1
+
+prompts:
+  # vLLM prompt templates
+  vllm_instruction_gen: "You are a helpful assistant. Generate a single realistic, high-quality USER instruction/question for the task category: '{task_type}' in the language: '{language}'. Make it natural and appropriate for a training dataset. Return ONLY the instruction text, no prefixes, no headers, no quotes."
+  vllm_response_standard: "[Instruction]\n{instruction}\n\n[Response]"
+  vllm_response_reasoning: "Solve the following instruction. First write a concise, step-by-step reasoning trace in a section starting with [Rationale]. Then write the final clean answer in a section starting with [Response]. Keep it compact.\n\nInstruction:\n{instruction}"
+  
+  # Local Transformers prompt templates
+  transformers_instruction_gen: "You are an AI data architect. Generate a single realistic, high-quality USER instruction for the task: '{task_type}' in the language: '{lang}'.\nReturn only the instruction text and nothing else."
+  transformers_response_standard: "[Instruction]\n{instruction}\n\n[Response]"
+  transformers_response_reasoning: "Solve the following instruction. First write a concise, step-by-step reasoning trace in a section [Rationale]. Then write the final clean answer in [Response]. Keep it compact.\n\nInstruction:\n{instruction}"
+
+dataset:
+  output_dir: "./dataset"
+  raw_file: "./dataset/raw_dataset.jsonl"
+  cleaned_file: "./dataset/cleaned_dataset.jsonl"
+  parquet_file: "./dataset/cleaned_dataset.parquet"
+  preview_file: "./dataset/dataset_preview.json"
+  summary_file: "./dataset/summary_report.md"
+  
+  # Recommended mix distribution
+  target_mix:
+    multilingual_chat: 0.35
+    speech_dialogue: 0.20
+    translation: 0.15
+    reasoning: 0.15
+    summarization: 0.10
+    refusal: 0.05
+
+cleaning:
+  # Decoupled mock template file path
+  mock_templates_file: "mock_templates.json"
+  
+  # Multiprocessing setup for 30 CPUs
+  num_workers: 30
+  
+  # Jaccard similarity threshold for near-duplicate filtering (0.0 to 1.0)
+  near_dup_threshold: 0.85
+  # Length filtering
+  max_response_length: 1500  # character limit to optimize for tiny SLMs
+  min_response_length: 10
+  # Phrasing / Repetition
+  remove_repetitions: true
+  repetition_ngram: 4
+  repetition_threshold: 3 # if an n-gram repeats more than this, reject
+  # Languages allowed (ISO codes for English + Indian Languages)
+  allowed_languages: ["en", "hi", "te", "ta", "mr", "bn", "gu", "kn", "ml", "or", "pa", "as"]
