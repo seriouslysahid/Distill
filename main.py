@@ -92,7 +92,7 @@ Commands:
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config.yaml")
     parser.add_argument("--model_id", type=str, help="Override Hugging Face Model ID")
     parser.add_argument("--local_dir", type=str, help="Override local download path")
-    parser.add_argument("--backend", type=str, choices=["mock", "transformers"], help="Override generation backend")
+    parser.add_argument("--backend", type=str, choices=["mock", "transformers", "vllm"], help="Override generation backend")
     parser.add_argument("--num_samples", type=int, help="Override number of samples to generate")
     
     # Download specific overrides
