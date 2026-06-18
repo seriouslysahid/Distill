@@ -529,6 +529,17 @@ def main():
     os.environ["HF_HOME"] = hf_cache_dir
     os.environ["HF_MODULES_CACHE"] = os.path.join(hf_cache_dir, "modules")
 
+    # Run hotpatch_vllm.py automatically in the main process if present, to ensure vLLM is ready before building the pipeline
+    hotpatch_script = Path(local_dir) / "hotpatch_vllm.py"
+    if hotpatch_script.exists():
+        print(f"\nFound vLLM hotpatch script at {hotpatch_script}. Running hotpatch...")
+        try:
+            import subprocess
+            subprocess.run([sys.executable, str(hotpatch_script)], check=True)
+            print("[OK] vLLM installation hotpatched successfully for Sarvam MoE/MLA architectures.\n")
+        except Exception as patch_err:
+            print(f"[WARNING] Failed to run hotpatch_vllm.py: {patch_err}\n")
+
     # CLI overrides
     if args.backend:
         config["generation"]["backend"] = args.backend
