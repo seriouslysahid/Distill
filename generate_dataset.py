@@ -176,15 +176,23 @@ class VllmDataGenerator(GeneratorStep):
         import subprocess
         from pathlib import Path
         
-        # Check and apply vLLM hotpatch for Sarvam custom architectures before importing vllm
-        hotpatch_script = Path(self.local_dir) / "hotpatch_vllm.py"
-        if hotpatch_script.exists():
-            print(f"\nFound vLLM hotpatch script at {hotpatch_script}. Running hotpatch...")
-            try:
-                subprocess.run([sys.executable, str(hotpatch_script)], check=True)
-                print("[OK] vLLM hotpatched successfully for Sarvam MoE/MLA architectures.")
-            except Exception as e:
-                print(f"[WARNING] Failed to run hotpatch_vllm.py: {e}")
+        # Check if vLLM registry already supports Sarvam architectures
+        is_patched = False
+        try:
+            from vllm import ModelRegistry
+            is_patched = "SarvamMLAForCausalLM" in ModelRegistry.get_supported_archs()
+        except Exception:
+            pass
+
+        if not is_patched:
+            hotpatch_script = Path(self.local_dir) / "hotpatch_vllm.py"
+            if hotpatch_script.exists():
+                print(f"\nvLLM not patched. Found hotpatch script at {hotpatch_script}. Running hotpatch...")
+                try:
+                    subprocess.run([sys.executable, str(hotpatch_script)], check=True)
+                    print("[OK] vLLM hotpatched successfully for Sarvam MoE/MLA architectures.\n")
+                except Exception as e:
+                    print(f"[WARNING] Failed to run hotpatch_vllm.py: {e}\n")
 
         try:
             from vllm import LLM, SamplingParams
@@ -529,16 +537,26 @@ def main():
     os.environ["HF_HOME"] = hf_cache_dir
     os.environ["HF_MODULES_CACHE"] = os.path.join(hf_cache_dir, "modules")
 
-    # Run hotpatch_vllm.py automatically in the main process if present, to ensure vLLM is ready before building the pipeline
-    hotpatch_script = Path(local_dir) / "hotpatch_vllm.py"
-    if hotpatch_script.exists():
-        print(f"\nFound vLLM hotpatch script at {hotpatch_script}. Running hotpatch...")
-        try:
-            import subprocess
-            subprocess.run([sys.executable, str(hotpatch_script)], check=True)
-            print("[OK] vLLM installation hotpatched successfully for Sarvam MoE/MLA architectures.\n")
-        except Exception as patch_err:
-            print(f"[WARNING] Failed to run hotpatch_vllm.py: {patch_err}\n")
+    # Check if vLLM registry already supports Sarvam architectures
+    is_patched = False
+    try:
+        from vllm import ModelRegistry
+        is_patched = "SarvamMLAForCausalLM" in ModelRegistry.get_supported_archs()
+    except Exception:
+        pass
+
+    if not is_patched:
+        hotpatch_script = Path(local_dir) / "hotpatch_vllm.py"
+        if hotpatch_script.exists():
+            print(f"\nvLLM not patched. Found hotpatch script at {hotpatch_script}. Running hotpatch...")
+            try:
+                import subprocess
+                subprocess.run([sys.executable, str(hotpatch_script)], check=True)
+                print("[OK] vLLM installation hotpatched successfully for Sarvam MoE/MLA architectures.\n")
+            except Exception as patch_err:
+                print(f"[WARNING] Failed to run hotpatch_vllm.py: {patch_err}\n")
+    else:
+        print("[OK] vLLM already patched for Sarvam MoE/MLA architectures.\n")
 
     # CLI overrides
     if args.backend:
