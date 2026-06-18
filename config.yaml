@@ -1,6 +1,6 @@
 model:
   # The default teacher model repository on Hugging Face
-  teacher_id: "sarvamai/sarvam-2b-v0.5" # "sarvamai/sarvam-105b" can be set for full scale
+  teacher_id: "sarvamai/sarvam-105b"
   token_env_var: "HF_TOKEN"
   local_dir: "./models/teacher"
 

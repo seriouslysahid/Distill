@@ -125,7 +125,7 @@ def main():
     api = HfApi(token=hf_token)
     try:
         model_info = api.model_info(model_id)
-        total_size_bytes = sum(getattr(f, "size", 0) for f in model_info.siblings)
+        total_size_bytes = sum(getattr(f, "size", 0) or 0 for f in model_info.siblings)
         total_size_gb = total_size_bytes / (1024**3)
         print(f"Remote model folder size: {total_size_gb:.2f} GB")
     except Exception as e:
